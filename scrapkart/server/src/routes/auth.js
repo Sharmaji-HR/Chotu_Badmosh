@@ -17,7 +17,7 @@ const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 const normalizeName = (name) => String(name || '').trim();
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: 40,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { message: 'Too many auth requests. Please try again later.' },
@@ -57,9 +57,9 @@ router.post('/register', authLimiter, upload.single('profilePicture'), [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const password = req.body.password;
   const name = normalizeName(req.body.name);
   const email = normalizeEmail(req.body.email);
+  const password = req.body.password;
 
   try {
     let user = await User.findOne({ email });
