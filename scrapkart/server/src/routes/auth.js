@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const multer = require('multer');
 const path = require('path');
+const { rateLimit } = require('express-rate-limit');
 const { configureCloudinary } = require('../config/cloudinary');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
@@ -12,6 +13,15 @@ const { auth } = require('../middleware/auth');
 const cloudinary = configureCloudinary();
 
 const router = express.Router();
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const normalizeName = (name) => String(name || '').trim();
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 40,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many auth requests. Please try again later.' },
+});
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -37,9 +47,9 @@ const upload = multer({
 // @route   POST /api/auth/register
 // @desc    Register user
 // @access  Public
-router.post('/register', upload.single('profilePicture'), [
+router.post('/register', authLimiter, upload.single('profilePicture'), [
   body('name', 'Name is required').not().isEmpty(),
-  body('email', 'Please include a valid email').isEmail(),
+  body('email', 'Please include a valid email').trim().isEmail(),
   body('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -47,7 +57,9 @@ router.post('/register', upload.single('profilePicture'), [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, email, password } = req.body;
+  const name = normalizeName(req.body.name);
+  const email = normalizeEmail(req.body.email);
+  const password = req.body.password;
 
   try {
     let user = await User.findOne({ email });
@@ -104,16 +116,17 @@ router.post('/register', upload.single('profilePicture'), [
 // @route   POST /api/auth/login
 // @desc    Authenticate user & get token
 // @access  Public
-router.post('/login', [
-  body('email', 'Please include a valid email').isEmail(),
-  body('password', 'Password is required').exists(),
+router.post('/login', authLimiter, [
+  body('email', 'Please include a valid email').trim().isEmail(),
+  body('password', 'Password is required').notEmpty(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { email, password } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const password = req.body.password;
 
   try {
     let user = await User.findOne({ email });
@@ -159,15 +172,15 @@ router.get('/me', auth, async (req, res) => {
 // @route   POST /api/auth/forgot-password
 // @desc    Generate password reset token and email reset link
 // @access  Public
-router.post('/forgot-password', [
-  body('email', 'Please include a valid email').isEmail(),
+router.post('/forgot-password', authLimiter, [
+  body('email', 'Please include a valid email').trim().isEmail(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     const user = await User.findOne({ email });
