@@ -12,6 +12,7 @@ const { auth } = require('../middleware/auth');
 const cloudinary = configureCloudinary();
 
 const router = express.Router();
+const normalizeEmail = (email = '') => email.trim().toLowerCase();
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -39,7 +40,7 @@ const upload = multer({
 // @access  Public
 router.post('/register', upload.single('profilePicture'), [
   body('name', 'Name is required').not().isEmpty(),
-  body('email', 'Please include a valid email').isEmail(),
+  body('email', 'Please include a valid email').trim().isEmail(),
   body('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 }),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -47,7 +48,8 @@ router.post('/register', upload.single('profilePicture'), [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, email, password } = req.body;
+  const { name, password } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     let user = await User.findOne({ email });
@@ -70,7 +72,7 @@ router.post('/register', upload.single('profilePicture'), [
     }
 
     user = new User({
-      name,
+      name: name.trim(),
       email,
       password,
       profilePicture,
@@ -105,15 +107,16 @@ router.post('/register', upload.single('profilePicture'), [
 // @desc    Authenticate user & get token
 // @access  Public
 router.post('/login', [
-  body('email', 'Please include a valid email').isEmail(),
-  body('password', 'Password is required').exists(),
+  body('email', 'Please include a valid email').trim().isEmail(),
+  body('password', 'Password is required').notEmpty(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { email, password } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const password = req.body.password;
 
   try {
     let user = await User.findOne({ email });
@@ -160,14 +163,14 @@ router.get('/me', auth, async (req, res) => {
 // @desc    Generate password reset token and email reset link
 // @access  Public
 router.post('/forgot-password', [
-  body('email', 'Please include a valid email').isEmail(),
+  body('email', 'Please include a valid email').trim().isEmail(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     const user = await User.findOne({ email });

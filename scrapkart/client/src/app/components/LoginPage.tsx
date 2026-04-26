@@ -27,16 +27,21 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
+      const payload = {
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      };
+
       const data = await apiRequest<{ token: string }>('/api/auth/login', {
         method: 'POST',
-        body: formData,
+        body: payload,
       });
 
       login(data.token);
       toast.success('Login successful!');
       navigate('/dashboard');
     } catch (error) {
-      toast.error('An error occurred. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
